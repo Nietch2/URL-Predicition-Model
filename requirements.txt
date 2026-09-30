@@ -2,8 +2,8 @@ jupyter
 notebook
 numpy
 pandas
-matplotlib.pyplot
+matplotlib
 scikit-learn
 streamlit
 seaborn
-plotly.express
+plotly
