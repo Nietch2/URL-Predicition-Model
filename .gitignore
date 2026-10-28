@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+PhiUSIIL_Phishing_URL_Dataset.csv
+cleaned_test_dataset.csv
+
+logistical_regression.joblib
+random_forest.joblib
