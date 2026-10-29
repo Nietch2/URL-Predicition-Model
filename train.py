@@ -5,18 +5,19 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.base import BaseEstimator
+from xgboost import XGBClassifier
 
 #non_features = ["FILENAME", "URL", "Domain", "TLD", "Title"]
 credential_harvesting = ["HasPasswordField", "HasExternalFormSubmit", "HasHiddenFields", "HasSubmitButton"]
 financial_impersonation = ["Bank", "Pay", "Crypto"]
-script_abuse = ["HasObfuscation", "ObfuscationRatio", "NoOfiFrame", "NoOfPopup", "NoOfJS"]
+script_abuse = ["HasObfuscation", "ObfuscationRatio", "NoOfiFrame", "NoOfPopup"]
 
 def load_and_prepare_data(file_path:Path):
     if file_path.is_file():
@@ -36,7 +37,8 @@ def split_dataset(dataset, target_col):
 def build_models():
     log_reg_pipeline = Pipeline([('scaler', StandardScaler()), ('classifier', LogisticRegression(max_iter = 1000, random_state = 42))])
     rand_forest = RandomForestClassifier(n_estimators = 100, random_state = 42, n_jobs = -1, )
-    return {"logistical_regression": log_reg_pipeline, "random_forest": rand_forest}
+    xgboost = XGBClassifier(n_estimators = 100, random_state = 42, n_jobs = -1, eval_metric = "logloss")
+    return {"logistical_regression": log_reg_pipeline, "random_forest": rand_forest, "xgboost": xgboost}
 
 def train_and_evaluate(model:BaseEstimator, X_train, X_test, y_train, y_test, threshold):
     model.fit(X_train, y_train)
@@ -53,10 +55,43 @@ def save_artifacts(model:BaseEstimator, columns, folder:Path, model_name):
         folder.mkdir(parents = True, exist_ok = True)
         bundled_dict = {"model": model, "columns": columns}
         joblib.dump(bundled_dict, folder / f"{model_name}.joblib")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"Error: {e}", file = sys.stderr)
 
 
+def profile_threat(features: pd.Series, confidence_score: float):
+    confidence_pct = round(float(confidence_score) * 100, 2)
+    
+    cred_hits = (features[credential_harvesting] > 0).sum()
+    fin_hits = (features[financial_impersonation] > 0).sum()
+    script_hits = (features[script_abuse] > 0).sum()
+    
+    malice_severity = {
+        "Credential Harvesting": round((cred_hits / len(credential_harvesting)) * 100, 2),
+        "Financial Impersonation": round((fin_hits / len(financial_impersonation)) * 100, 2),
+        "Script/Frame Abuse": round((script_hits / len(script_abuse)) * 100, 2)
+    }
+    
+    return confidence_pct, malice_severity
+
+def demonstrate_interference(model:BaseEstimator, X_test, y_test, threshold, n_samples = 5):
+    x_test_rows = X_test.head(n_samples).reset_index(drop = True)
+    y_test_rows = y_test.head(n_samples).reset_index(drop = True)
+    confidence = model.predict_proba(x_test_rows)[:,1]
+    pred_evaluation = np.where(confidence >= threshold, "MALICIOUS", "BENIGN")
+    true_evaluation = np.where(y_test_rows == 1, "MALICIOUS", "BENIGN")
+    for index, row in x_test_rows.iterrows():
+        confidence_pct, malice_severity = profile_threat(row, confidence[index])   
+        print(f"Ground Truth: {true_evaluation[index]} Predicted Verdict: {pred_evaluation[index]}")
+        print(f"Malice Confidence: {confidence_pct}%")
+        print(f"Possibility of Credential Harvesting: {malice_severity.get('Credential Harvesting')}")
+        print(f"Possibility of Financial Impersonation: {malice_severity.get('Financial Impersonation')}")
+        print(f"Possibility of Script/Frame Abuse: {malice_severity.get('Script/Frame Abuse')}")
+
+def show_feature_importance(model:BaseEstimator, columns, top_n = 10):
+    if(hasattr(model, "feature_importances_")):
+        feature_importances = pd.Series(model.feature_importances_, index = columns).sort_values(ascending = False)
+        print(feature_importances.head(top_n))
 
 def main():
     parser = argparse.ArgumentParser(description = "Trains a model with scikit from a dataset containing over 230,000 thousand websites to predict whether or not a website is a pishing or malicious website")
@@ -74,6 +109,9 @@ def main():
         for key, value in models.items():
             print(key + " is training")
             model, roc_auc = train_and_evaluate(value, X_train, X_test, y_train, y_test, args.threshold)
+            demonstrate_interference(model, X_test, y_test, args.threshold, n_samples = 10)
+            if (key == "xgboost" or key == "random_forest"):
+                show_feature_importance(model, X_train.columns)
             save_artifacts(model, X_train.columns.tolist(), args.out_dir, key)
             roc_aucs.append(roc_auc)
 
