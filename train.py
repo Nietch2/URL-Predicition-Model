@@ -95,7 +95,7 @@ def show_feature_importance(model:BaseEstimator, columns, top_n = 10):
 
 def main():
     parser = argparse.ArgumentParser(description = "Trains a model with scikit from a dataset containing over 230,000 thousand websites to predict whether or not a website is a pishing or malicious website")
-    parser.add_argument('--data', type = Path, help = "Path to the cleaned input CSV file", default = Path("PhiUSIIL_Phishing_URL_Dataset.csv"))
+    parser.add_argument('--data', type = Path, help = "Path to the cleaned input CSV file", default = Path("cleaned_data.csv"))
     parser.add_argument('--out-dir', type = Path, default = Path('models/'), help = 'Directory where trained models and evaluation reports will be saved')
     parser.add_argument('--threshold', type = float, default = 0.5, help = "confidence cutoff to categorize url as malicious")
 
