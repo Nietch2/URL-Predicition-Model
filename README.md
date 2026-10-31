@@ -153,7 +153,7 @@ Tree split analysis reveals that classification is anchored by a mix of lexical 
 Clone the repository and install required dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/malicious-url-detection.git
+git clone https://github.com/Nietch2/URL-Prediction-Model.git
 cd malicious-url-detection
 
 python -m venv venv
